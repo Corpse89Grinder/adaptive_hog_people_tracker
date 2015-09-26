@@ -97,79 +97,42 @@ int main(int argc, char **argv)
 
 	ros::NodeHandle nh;
 
+	std::string camera_t, bounding_box_t, detector_type;
+	int verbosity_level;
+	ros::param::param<std::string>("~/camera_topic", camera_t, "camera/image_raw");
+	ros::param::param<std::string>("~/bounding_box_topic", bounding_box_t, "bounding_box");
+	ros::param::param<std::string>("~/detector", detector_type, "full");
+	ros::param::param<int>("~/verbosity_level", verbosity_level, 0);
+
 	image_transport::ImageTransport it(nh);
 
-	image_transport::Subscriber sub = it.subscribe("camera/image", 1, imageCallback);
+	image_transport::Subscriber sub = it.subscribe(camera_t, 1, imageCallback);
 
-	p = nh.advertise<adaptive_hog_people_tracker::BoundingBox>("commands", 1);
+	p = nh.advertise<adaptive_hog_people_tracker::BoundingBox>(bounding_box_t, 1);
 
-	detectionHog = HOGDetector(HOGDetector::FULL);
-	trainingHog = HOGDetector(HOGDetector::FULL);
-
-	if(argc > 1)
+	if(verbosity_level == 0)
 	{
-		for(int i = 1; i < argc; i++)
-		{
-			std::string arg = argv[i];
+		print = false;
+	}
+	else if(verbosity_level == 1)
+	{
+		print = true;
+	}
+	else
+	{
+		ROS_ERROR("Param verbosity_level must be 0 (no output) or 1 (full output)!");
+		return 1;
+	}
 
-			if(arg == "-q")
-			{
-				print = false;
-
-				continue;
-			}
-			else if(arg == "-d")
-			{
-				i++;
-
-				if(i < argc)
-				{
-					arg = argv[i];
-
-					if(arg == "0")
-					{
-						continue;
-					}
-					else if(arg == "1")
-					{
-						detectionHog = HOGDetector(HOGDetector::TORSO);
-						trainingHog = HOGDetector(HOGDetector::TORSO);
-
-						continue;
-					}
-					else
-					{
-						std::cout << "Unrecognized model: " << arg << std::endl << std::endl;
-
-						showHelpMessage(argv[0]);
-
-						return EXIT_SUCCESS;
-					}
-				}
-				else
-				{
-					std::cout << "Detector model unspecified" << std::endl << std::endl;
-
-					showHelpMessage(argv[0]);
-
-					return EXIT_SUCCESS;
-				}
-			}
-			else if(strcmp(argv[i], "-h") == 0)
-			{
-				showHelpMessage(argv[0]);
-
-				return EXIT_SUCCESS;
-			}
-			else
-			{
-				std::cout << "Unknown option: " << argv[i] << std::endl << std::endl;
-
-				showHelpMessage(argv[0]);
-
-				return EXIT_SUCCESS;
-			}
-		}
+	if(detector_type == "full")
+	{
+		detectionHog = HOGDetector(HOGDetector::FULL);
+		trainingHog = HOGDetector(HOGDetector::FULL);
+	}
+	else if(detector_type == "torso")
+	{
+		detectionHog = HOGDetector(HOGDetector::TORSO);
+		trainingHog = HOGDetector(HOGDetector::TORSO);
 	}
 
 	searchRoiRatio = detectionHog.getSearchRoiRatio();
@@ -205,7 +168,7 @@ int main(int argc, char **argv)
 
 	cv::setIdentity(kf.measurementNoiseCov, cv::Scalar(1e-2));
 
-	while(true)
+	while(ros::ok())
 	{
 		if(!cvGetWindowHandle(windowTitle.c_str()))
 		{
@@ -644,37 +607,7 @@ void printFunction(std::string message)
 {
 	if(print)
 	{
-		std::cout << message << std::endl;
+		ROS_INFO(message.c_str());
 	}
-}
-
-void showHelpMessage(std::string fileName)
-{
-	std::string inverted;
-
-	for(int i = fileName.size() - 1; i >= 0; i--)
-	{
-		if(fileName[i] == '/')
-		{
-			break;
-		};
-
-		inverted.push_back(fileName[i]);
-	}
-
-	fileName.clear();
-
-	for(int i = inverted.size() - 1; i >= 0; i--)
-	{
-		fileName.push_back(inverted[i]);
-	}
-
-	std::cout << "Usage: " << fileName << " [options]" << std::endl;
-	std::cout << "options:" << std::endl;
-	std::cout << "-d -- detector : the starting detector model" << std::endl;
-	std::cout << '\t' << "0 -- full person detector (default)" << std::endl;
-	std::cout << '\t' << "1 -- upper body detector" << std::endl;
-	std::cout << "-q -- quiet mode: disable console output (which is default enabled)" << std::endl;
-	std::cout << "-h -- help: show this message" << std::endl;
 }
 //--------------------------------------------------
